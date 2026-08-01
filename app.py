@@ -21,8 +21,8 @@ import pandas as pd
 # --- CONFIGURAZIONE SMTP (GMAIL) DA ST.SECRETS ---
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
-SENDER_EMAIL = st.secrets["smtp"]["sender_email"]
-SENDER_PASSWORD = st.secrets["smtp"]["sender_password"]
+SENDER_EMAIL = st.secrets["smtp"]["modafferi@1986"]
+SENDER_PASSWORD = st.secrets["smtp"]["yxadrwsngtzarvww"]
 
 # --- CONFIGURAZIONE STRIPE ---
 LINK_PAGAMENTO_STRIPE = "https://buy.stripe.com/8x2aEZ68c16x8hv5HibZe00"
