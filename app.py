@@ -4,6 +4,7 @@ import os
 import re
 import sqlite3
 import smtplib
+from contextlib import closing
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -43,66 +44,66 @@ def get_db_connection():
 def inizializza_db_automatico():
     """Garantisce che la directory e le tabelle del database esistano."""
     PROJECT_DIR.mkdir(parents=True, exist_ok=True)
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
+    with closing(get_db_connection()) as conn:
+        with conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS risposte_clienti (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    studio_nome TEXT,
+                    email TEXT,
+                    regione TEXT,
+                    bando_titolo TEXT,
+                    filename_dossier TEXT,
+                    stato TEXT
+                )
             """
-            CREATE TABLE IF NOT EXISTS risposte_clienti (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                studio_nome TEXT,
-                email TEXT,
-                regione TEXT,
-                bando_titolo TEXT,
-                filename_dossier TEXT,
-                stato TEXT
             )
-        """
-        )
-        cursor.execute(
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS studi_target (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nome_studio TEXT,
+                    regione TEXT,
+                    email_studio TEXT,
+                    sito_web TEXT
+                )
             """
-            CREATE TABLE IF NOT EXISTS studi_target (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nome_studio TEXT,
-                regione TEXT,
-                email_studio TEXT,
-                sito_web TEXT
             )
-        """
-        )
-        cursor.execute(
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS meta_cron (
+                    chiave TEXT PRIMARY KEY,
+                    ultima_esecuzione TEXT
+                )
             """
-            CREATE TABLE IF NOT EXISTS meta_cron (
-                chiave TEXT PRIMARY KEY,
-                ultima_esecuzione TEXT
             )
-        """
-        )
-        conn.commit()
 
 
 def popola_target_iniziali():
     """Popola alcuni studi target di esempio divisi per regione se la tabella è vuota."""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM studi_target")
-        if cursor.fetchone()[0] == 0:
-            studi_esempio = [
-                ("Studio Associato Milano - Finanza", "Lombardia", "modafferi39@gmail.com", "https://www.example.it"),
-                ("Consulenza Tributaria Roma", "Lazio", "modafferi39@gmail.com", "https://www.example.it"),
-                ("Studio Commercialisti Torino", "Piemonte", "modafferi39@gmail.com", "https://www.example.it"),
-                ("Finanza & Impresa Verona", "Veneto", "modafferi39@gmail.com", "https://www.example.it"),
-            ]
-            cursor.executemany(
-                "INSERT INTO studi_target (nome_studio, regione, email_studio, sito_web) VALUES (?, ?, ?, ?)",
-                studi_esempio,
-            )
-            conn.commit()
+    with closing(get_db_connection()) as conn:
+        with conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM studi_target")
+            if cursor.fetchone()[0] == 0:
+                studi_esempio = [
+                    ("Studio Associato Milano - Finanza", "Lombardia", "modafferi39@gmail.com", "https://www.example.it"),
+                    ("Consulenza Tributaria Roma", "Lazio", "modafferi39@gmail.com", "https://www.example.it"),
+                    ("Studio Commercialisti Torino", "Piemonte", "modafferi39@gmail.com", "https://www.example.it"),
+                    ("Finanza & Impresa Verona", "Veneto", "modafferi39@gmail.com", "https://www.example.it"),
+                ]
+                cursor.executemany(
+                    "INSERT INTO studi_target (nome_studio, regione, email_studio, sito_web) VALUES (?, ?, ?, ?)",
+                    studi_esempio,
+                )
 
 
 def trova_target_per_regione(regione):
     """Recupera gli studi target pertinenti alla regione del bando trovato."""
     inizializza_db_automatico()
-    with get_db_connection() as conn:
+    with closing(get_db_connection()) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT nome_studio, email_studio FROM studi_target WHERE regione = ?", (regione,))
         studi = cursor.fetchall()
@@ -146,7 +147,7 @@ Team Radar Bandi B2B
             server.sendmail(SENDER_EMAIL, destinatario_email, msg.as_string())
         return True
     except Exception as e:
-        print(f"Errore invio mail marketing: {e}")
+        st.error(f"Errore durante l'invio dell'email marketing: {e}")
         return False
 
 
@@ -164,29 +165,29 @@ def inserisci_bando_automatico_e_notifica(studio_nome, email, regione, bando_tit
 
     email_pulita = email.strip().lower()
 
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM risposte_clienti WHERE LOWER(email) = ?", (email_pulita,))
-        esistente = cursor.fetchone()
+    with closing(get_db_connection()) as conn:
+        with conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM risposte_clienti WHERE LOWER(email) = ?", (email_pulita,))
+            esistente = cursor.fetchone()
 
-        if esistente:
-            cursor.execute(
-                """
-                UPDATE risposte_clienti 
-                SET studio_nome = ?, regione = ?, bando_titolo = ?, filename_dossier = ?, stato = 'Da pagare'
-                WHERE LOWER(email) = ?
-            """,
-                (studio_nome, regione, bando_titolo, filename_txt, email_pulita),
-            )
-        else:
-            cursor.execute(
-                """
-                INSERT INTO risposte_clienti (studio_nome, email, regione, bando_titolo, filename_dossier, stato)
-                VALUES (?, ?, ?, ?, ?, 'Da pagare')
-            """,
-                (studio_nome, email, regione, bando_titolo, filename_txt),
-            )
-        conn.commit()
+            if esistente:
+                cursor.execute(
+                    """
+                    UPDATE risposte_clienti 
+                    SET studio_nome = ?, regione = ?, bando_titolo = ?, filename_dossier = ?, stato = 'Da pagare'
+                    WHERE LOWER(email) = ?
+                """,
+                    (studio_nome, regione, bando_titolo, filename_txt, email_pulita),
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO risposte_clienti (studio_nome, email, regione, bando_titolo, filename_dossier, stato)
+                    VALUES (?, ?, ?, ?, ?, 'Da pagare')
+                """,
+                    (studio_nome, email, regione, bando_titolo, filename_txt),
+                )
 
     pdf_path = txt_path.with_suffix(".pdf")
     converti_txt_in_pdf_reportlab(txt_path, pdf_path, studio_nome, bando_titolo, regione)
@@ -204,7 +205,6 @@ def inserisci_bando_automatico_e_notifica(studio_nome, email, regione, bando_tit
 
 def task_ricerca_bandi_giornaliera():
     """Task eseguito in automatico alla prima visita giornaliera."""
-    print("Avvio ricerca giornaliera bandi...")
     auto_studio = "Studio Associato Automatico"
     auto_email = "modafferi39@gmail.com"
     auto_regione = "Lazio"
@@ -218,25 +218,24 @@ Contributo e scadenze verificati automaticamente dal sistema di monitoraggio.
     inserisci_bando_automatico_e_notifica(
         auto_studio, auto_email, auto_regione, auto_titolo, testo_dossier_generato
     )
-    print("Ricerca giornaliera completata, target individuati e notifiche inviate.")
 
 
 def controlla_ed_esegui_task_giornaliero():
     """Controlla se oggi è già stata eseguita la ricerca automatica. In caso contrario, la esegue."""
     inizializza_db_automatico()
     oggi = datetime.now().strftime("%Y-%m-%d")
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT ultima_esecuzione FROM meta_cron WHERE chiave = 'ultima_ricerca_bandi'")
-        row = cursor.fetchone()
+    with closing(get_db_connection()) as conn:
+        with conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT ultima_esecuzione FROM meta_cron WHERE chiave = 'ultima_ricerca_bandi'")
+            row = cursor.fetchone()
 
-        if not row or row["ultima_esecuzione"] != oggi:
-            task_ricerca_bandi_giornaliera()
-            cursor.execute(
-                "INSERT OR REPLACE INTO meta_cron (chiave, ultima_esecuzione) VALUES ('ultima_ricerca_bandi', ?)",
-                (oggi,)
-            )
-            conn.commit()
+            if not row or row["ultima_esecuzione"] != oggi:
+                task_ricerca_bandi_giornaliera()
+                cursor.execute(
+                    "INSERT OR REPLACE INTO meta_cron (chiave, ultima_esecuzione) VALUES ('ultima_ricerca_bandi', ?)",
+                    (oggi,),
+                )
 
 
 # Esegue il controllo lazy all'avvio dell'app
@@ -247,7 +246,7 @@ def get_lead_by_email(email):
     if not DB_PATH.exists():
         return None
     email_pulita = email.strip().lower()
-    with get_db_connection() as conn:
+    with closing(get_db_connection()) as conn:
         cursor = conn.cursor()
         try:
             cursor.execute(
@@ -264,7 +263,7 @@ def get_all_leads():
     if not DB_PATH.exists():
         return []
     try:
-        with get_db_connection() as conn:
+        with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT id, studio_nome, email, regione, bando_titolo, filename_dossier, stato FROM risposte_clienti")
@@ -275,10 +274,10 @@ def get_all_leads():
 
 
 def aggiorna_stato_pagato(lead_id):
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE risposte_clienti SET stato = 'Pagato e Scaricato' WHERE id = ?", (lead_id,))
-        conn.commit()
+    with closing(get_db_connection()) as conn:
+        with conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE risposte_clienti SET stato = 'Pagato e Scaricato' WHERE id = ?", (lead_id,))
 
 
 def estrai_link_bando_esatto(file_path, bando_titolo=""):
@@ -428,7 +427,7 @@ Team Radar Bandi B2B
             server.sendmail(SENDER_EMAIL, destinatario_email, msg.as_string())
         return True
     except Exception as e:
-        print(f"Errore nell'invio dell'email post-pagamento: {e}")
+        st.error(f"Errore nell'invio dell'email post-pagamento: {e}")
         return False
 
 
@@ -494,10 +493,10 @@ Dettagli Tecnici:
     st.sidebar.divider()
     if st.sidebar.button("Forza reset stato lead"):
         if DB_PATH.exists():
-            with get_db_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("UPDATE risposte_clienti SET stato = 'Da pagare'")
-                conn.commit()
+            with closing(get_db_connection()) as conn:
+                with conn:
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE risposte_clienti SET stato = 'Da pagare'")
             st.sidebar.success("Stato resettato!")
             st.rerun()
 
@@ -618,6 +617,25 @@ with tab_crm:
             c4.metric("Fatturato", f"€ {fatturato_totale:,.2f}")
             st.divider()
 
+            # --- VISUALIZZAZIONE OTTIMIZZATA CON ST.DATAFRAME ---
+            st.subheader("Panoramica Tabellare Pipeline")
+            df_display = pd.DataFrame(tutti_i_lead)
+            st.dataframe(
+                df_display,
+                use_container_width=True,
+                column_config={
+                    "id": "ID",
+                    "studio_nome": "Studio",
+                    "email": st.column_config.LinkColumn("Contatto Email"),
+                    "regione": "Regione",
+                    "bando_titolo": "Misura / Bando",
+                    "filename_dossier": "File Dossier",
+                    "stato": st.column_config.SelectboxColumn("Stato Lead", options=["Da pagare", "Pagato e Scaricato"])
+                }
+            )
+
+            st.divider()
+            st.subheader("Azioni Rapide sui Lead")
             for l in tutti_i_lead:
                 lead_id = l["id"]
                 studio_nome = l["studio_nome"]
