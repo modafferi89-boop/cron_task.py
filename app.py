@@ -151,6 +151,78 @@ Team Radar Bandi B2B
         return False
 
 
+def estrai_link_bando_esatto(file_path, bando_titolo=""):
+    titolo_lower = bando_titolo.lower() if bando_titolo else ""
+    path_obj = Path(file_path)
+    if path_obj.exists():
+        try:
+            testo_completo = path_obj.read_text(encoding="utf-8")
+            urls = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', testo_completo)
+            if urls:
+                for u in urls:
+                    u_clean = u.strip(".,;:\"'()")
+                    if not u_clean.startswith("http"):
+                        u_clean = "https://" + u_clean
+                    if any(k in u_clean.lower() for k in ["bando", "avviso", "regione", "lazioinnova"]):
+                        return u_clean
+                return urls[0].strip(".,;:\"'()")
+        except Exception:
+            pass
+
+    if "lazio" in titolo_lower:
+        return "https://www.lazioinnova.it/bandi/"
+    elif "lombardia" in titolo_lower:
+        return "https://www.bandi.regione.lombardia.it/"
+    elif "piemonte" in titolo_lower:
+        return "https://www.regione.piemonte.it/web/temi/attivita-produttive/finanziamenti"
+    return "https://www.bandi.it/"
+
+
+def converti_txt_in_pdf_reportlab(txt_path, pdf_path, studio_nome, bando_titolo, regione):
+    txt_path_obj = Path(txt_path)
+    pdf_path_obj = Path(pdf_path)
+
+    contenuto_testo = "Dossier Tecnico Operativo B2B"
+    if txt_path_obj.exists():
+        try:
+            contenuto_testo = txt_path_obj.read_text(encoding="utf-8")
+        except Exception:
+            pass
+
+    link_esatto = estrai_link_bando_esatto(txt_path_obj, bando_titolo)
+    doc = SimpleDocTemplate(str(pdf_path_obj), pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36,
+                            bottomMargin=36)
+    story = []
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle("TitleStyle", parent=styles["Heading1"], fontName="Helvetica-Bold", fontSize=16,
+                                 textColor=colors.HexColor("#1b365d"), spaceAfter=6)
+    subtitle_style = ParagraphStyle("SubTitleStyle", parent=styles["Normal"], fontName="Helvetica", fontSize=10,
+                                    textColor=colors.HexColor("#555555"), spaceAfter=15)
+    body_style = ParagraphStyle("BodyStyle", parent=styles["Normal"], fontName="Helvetica", fontSize=10, leading=14,
+                                textColor=colors.HexColor("#2c3e50"), spaceAfter=10)
+    link_style = ParagraphStyle("LinkStyle", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=10,
+                                textColor=colors.HexColor("#2980b9"), spaceBefore=15, spaceAfter=15)
+
+    story.append(Paragraph("DOSSIER TECNICO OPERATIVO B2B", title_style))
+    story.append(Paragraph(f"<b>Studio:</b> {studio_nome} | <b>Regione:</b> {regione} | <b>Misura:</b> {bando_titolo}",
+                           subtitle_style))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("<b>Analisi di Fattibilità & Contenuto Operativo:</b>", body_style))
+    for riga in contenuto_testo.split("\n"):
+        if riga.strip():
+            story.append(Paragraph(riga, body_style))
+
+    story.append(Spacer(1, 15))
+    story.append(Paragraph("<b>Riferimento Istituzionale & Link Diretto al Bando:</b>", body_style))
+    story.append(
+        Paragraph(f'<a href="{link_esatto}"><b>🔗 ACCEDI AL BANDO UFFICIALE: {link_esatto}</b></a>', link_style))
+
+    doc.build(story)
+    return str(pdf_path_obj)
+
+
 def inserisci_bando_automatico_e_notifica(studio_nome, email, regione, bando_titolo, contenuto_dossier):
     """Flusso completo: Inserisce il bando, genera il dossier, trova i target e invia le notifiche mail."""
     inizializza_db_automatico()
@@ -238,7 +310,7 @@ def controlla_ed_esegui_task_giornaliero():
                 )
 
 
-# Esegue il controllo lazy all'avvio dell'app
+# Esegue il controllo lazy all'avvio dell'app dopo tutte le definizioni
 controlla_ed_esegui_task_giornaliero()
 
 
@@ -278,78 +350,6 @@ def aggiorna_stato_pagato(lead_id):
         with conn:
             cursor = conn.cursor()
             cursor.execute("UPDATE risposte_clienti SET stato = 'Pagato e Scaricato' WHERE id = ?", (lead_id,))
-
-
-def estrai_link_bando_esatto(file_path, bando_titolo=""):
-    titolo_lower = bando_titolo.lower() if bando_titolo else ""
-    path_obj = Path(file_path)
-    if path_obj.exists():
-        try:
-            testo_completo = path_obj.read_text(encoding="utf-8")
-            urls = re.findall(r'https?://[^\s<>"]+|www\.[^\s<>"]+', testo_completo)
-            if urls:
-                for u in urls:
-                    u_clean = u.strip(".,;:\"'()")
-                    if not u_clean.startswith("http"):
-                        u_clean = "https://" + u_clean
-                    if any(k in u_clean.lower() for k in ["bando", "avviso", "regione", "lazioinnova"]):
-                        return u_clean
-                return urls[0].strip(".,;:\"'()")
-        except Exception:
-            pass
-
-    if "lazio" in titolo_lower:
-        return "https://www.lazioinnova.it/bandi/"
-    elif "lombardia" in titolo_lower:
-        return "https://www.bandi.regione.lombardia.it/"
-    elif "piemonte" in titolo_lower:
-        return "https://www.regione.piemonte.it/web/temi/attivita-produttive/finanziamenti"
-    return "https://www.bandi.it/"
-
-
-def converti_txt_in_pdf_reportlab(txt_path, pdf_path, studio_nome, bando_titolo, regione):
-    txt_path_obj = Path(txt_path)
-    pdf_path_obj = Path(pdf_path)
-
-    contenuto_testo = "Dossier Tecnico Operativo B2B"
-    if txt_path_obj.exists():
-        try:
-            contenuto_testo = txt_path_obj.read_text(encoding="utf-8")
-        except Exception:
-            pass
-
-    link_esatto = estrai_link_bando_esatto(txt_path_obj, bando_titolo)
-    doc = SimpleDocTemplate(str(pdf_path_obj), pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36,
-                            bottomMargin=36)
-    story = []
-    styles = getSampleStyleSheet()
-
-    title_style = ParagraphStyle("TitleStyle", parent=styles["Heading1"], fontName="Helvetica-Bold", fontSize=16,
-                                 textColor=colors.HexColor("#1b365d"), spaceAfter=6)
-    subtitle_style = ParagraphStyle("SubTitleStyle", parent=styles["Normal"], fontName="Helvetica", fontSize=10,
-                                    textColor=colors.HexColor("#555555"), spaceAfter=15)
-    body_style = ParagraphStyle("BodyStyle", parent=styles["Normal"], fontName="Helvetica", fontSize=10, leading=14,
-                                textColor=colors.HexColor("#2c3e50"), spaceAfter=10)
-    link_style = ParagraphStyle("LinkStyle", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=10,
-                                textColor=colors.HexColor("#2980b9"), spaceBefore=15, spaceAfter=15)
-
-    story.append(Paragraph("DOSSIER TECNICO OPERATIVO B2B", title_style))
-    story.append(Paragraph(f"<b>Studio:</b> {studio_nome} | <b>Regione:</b> {regione} | <b>Misura:</b> {bando_titolo}",
-                           subtitle_style))
-    story.append(Spacer(1, 10))
-
-    story.append(Paragraph("<b>Analisi di Fattibilità & Contenuto Operativo:</b>", body_style))
-    for riga in contenuto_testo.split("\n"):
-        if riga.strip():
-            story.append(Paragraph(riga, body_style))
-
-    story.append(Spacer(1, 15))
-    story.append(Paragraph("<b>Riferimento Istituzionale & Link Diretto al Bando:</b>", body_style))
-    story.append(
-        Paragraph(f'<a href="{link_esatto}"><b>🔗 ACCEDI AL BANDO UFFICIALE: {link_esatto}</b></a>', link_style))
-
-    doc.build(story)
-    return str(pdf_path_obj)
 
 
 def genera_pdf_report_crm(df_leads):
@@ -617,7 +617,6 @@ with tab_crm:
             c4.metric("Fatturato", f"€ {fatturato_totale:,.2f}")
             st.divider()
 
-            # --- VISUALIZZAZIONE OTTIMIZZATA CON ST.DATAFRAME ---
             st.subheader("Panoramica Tabellare Pipeline")
             df_display = pd.DataFrame(tutti_i_lead)
             st.dataframe(
