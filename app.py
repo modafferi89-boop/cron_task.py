@@ -106,6 +106,21 @@ def popola_target_iniziali():
                 )
 
 
+def aggiungi_studio_target(nome_studio, regione, email_studio, sito_web):
+    """Aggiunge un nuovo studio target nel database."""
+    inizializza_db_automatico()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+                INSERT INTO studi_target (nome_studio, regione, email_studio, sito_web)
+                VALUES (?, ?, ?, ?)
+            """,
+            (nome_studio, regione, email_studio, sito_web),
+        )
+        conn.commit()
+
+
 def trova_target_per_regione(regione):
     """Recupera gli studi target pertinenti alla regione del bando trovato."""
     inizializza_db_automatico()
@@ -478,6 +493,37 @@ Dettagli Tecnici:
                 f"Bando registrato! Inviate {count_inviate} email informative ai target della regione {auto_regione}.")
             st.rerun()
 
+    with st.sidebar.expander("👥 Gestione & Aggiunta Target", expanded=False):
+        st.markdown("Aggiungi un nuovo studio target da notificare all'uscita dei bandi.")
+        with st.form("form_nuovo_target"):
+            nuovo_nome = st.text_input("Nome Studio Cliente")
+            nuova_regione = st.selectbox(
+                "Regione Target",
+                [
+                    "Lazio",
+                    "Lombardia",
+                    "Piemonte",
+                    "Veneto",
+                    "Campania",
+                    "Sicilia",
+                    "Toscana",
+                    "Calabria",
+                ],
+                key="form_regione",
+            )
+            nuova_email = st.text_input("Email di Contatto")
+            nuovo_sito = st.text_input("Sito Web (opzionale)", "https://www.example.it")
+
+            submit_target = st.form_submit_button("Salva Nuovo Target")
+            if submit_target:
+                if nuovo_nome and nuova_email:
+                    aggiungi_studio_target(
+                        nuovo_nome, nuova_regione, nuova_email, nuovo_sito
+                    )
+                    st.success(f"Studio '{nuovo_nome}' aggiunto con successo!")
+                else:
+                    st.error("Inserisci almeno il nome dello studio e l'email.")
+
     st.sidebar.divider()
     st.sidebar.subheader("📥 Esportazione Dati")
     leads_raw = get_all_leads()
@@ -489,13 +535,13 @@ Dettagli Tecnici:
         excel_data = output_excel.getvalue()
 
         st.sidebar.download_button("📊 Scarica Attività (Excel)", data=excel_data, file_name="report_attivita_crm.xlsx",
-                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         csv_data = df_crm.to_csv(index=False).encode("utf-8")
         st.sidebar.download_button("📄 Scarica Attività (CSV)", data=csv_data, file_name="report_attivita_crm.csv",
-                                    mime="text/csv")
+                                   mime="text/csv")
         pdf_report_data = genera_pdf_report_crm(df_crm)
         st.sidebar.download_button("📑 Scarica Attività (PDF)", data=pdf_report_data,
-                                    file_name="report_attivita_crm.pdf", mime="application/pdf")
+                                   file_name="report_attivita_crm.pdf", mime="application/pdf")
     else:
         st.sidebar.info("Nessun dato da esportare.")
 
@@ -576,7 +622,7 @@ with tab_download:
                     with open(pdf_path, "rb") as f:
                         pdf_bytes = f.read()
                     st.download_button(label="📥 Scarica Dossier Tecnico Ufficiale (.PDF)", data=pdf_bytes,
-                                        file_name=pdf_filename, mime="application/pdf")
+                                       file_name=pdf_filename, mime="application/pdf")
                 st.markdown(f"🔗 **Link Diretto al Bando Ufficiale:** [Apri Pagina]({link_esatto})")
             else:
                 st.warning("Per sbloccare l'accesso completo, procedi al pagamento spot.")
