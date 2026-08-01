@@ -524,6 +524,71 @@ Dettagli Tecnici:
                 else:
                     st.error("Inserisci almeno il nome dello studio e l'email.")
 
+    with st.sidebar.expander("👥 Gestione Target & Invio Personalizzato", expanded=True):
+        st.markdown("### Aggiungi Nuovo Studio Target")
+        nuovo_nome_p = st.text_input("Nome Studio", key="target_nome_input")
+        nuova_regione_p = st.selectbox(
+            "Regione Target",
+            ["Lazio", "Lombardia", "Piemonte", "Veneto", "Campania", "Sicilia", "Toscana", "Calabria"],
+            key="target_regione_input"
+        )
+        nuova_email_p = st.text_input("Email Studio", key="target_email_input")
+        nuovo_sito_p = st.text_input("Sito Web (opzionale)", key="target_sito_input")
+
+        if st.button("Salva Studio Target nel DB"):
+            if nuovo_nome_p and nuova_email_p:
+                aggiungi_studio_target(nuovo_nome_p, nuova_regione_p, nuova_email_p, nuovo_sito_p)
+                st.success(f"Studio '{nuovo_nome_p}' salvato con successo!")
+            else:
+                st.error("Inserisci almeno il nome e l'email dello studio.")
+
+        st.divider()
+        st.markdown("### 📤 Invia Campagna Personalizzata")
+        regione_campagna = st.selectbox(
+            "Seleziona Regione Target",
+            ["Lazio", "Lombardia", "Piemonte", "Veneto", "Campania", "Sicilia", "Toscana", "Calabria"],
+            key="campagna_regione_select"
+        )
+        titolo_bando_campagna = st.text_input(
+            "Titolo Bando",
+            "Bando Innovazione e Digitalizzazione PMI",
+            key="campagna_titolo_input"
+        )
+
+        if st.button("Avvia Invio a Studi della Regione"):
+            studi_mirati = trova_target_per_regione(regione_campagna)
+            if studi_mirati:
+                inviate = 0
+                for nome, mail in studi_mirati:
+                    if mail:
+                        file_temp = PROJECT_DIR / f"dossier_temp_{regione_campagna.lower()}.pdf"
+                        txt_origine = PROJECT_DIR / f"DOSSIER_{regione_campagna.upper()}_20260731_130055_42.txt"
+                        
+                        if not txt_origine.exists():
+                            txt_origine = PROJECT_DIR / "dossier_temp.txt"
+                            txt_origine.write_text(f"Dossier tecnico operativo per la regione {regione_campagna}", encoding="utf-8")
+
+                        converti_txt_in_pdf_reportlab(
+                            txt_origine,
+                            file_temp,
+                            nome,
+                            titolo_bando_campagna,
+                            regione_campagna
+                        )
+
+                        successo = invia_email_marketing_bando(
+                            mail,
+                            nome,
+                            titolo_bando_campagna,
+                            regione_campagna,
+                            file_temp
+                        )
+                        if successo:
+                            inviate += 1
+                st.success(f"Campagna completata! Inviate {inviate} email personalizzate per la regione {regione_campagna}.")
+            else:
+                st.warning(f"Nessun studio target trovato nel database per la regione {regione_campagna}.")
+
     st.sidebar.divider()
     st.sidebar.subheader("📥 Esportazione Dati")
     leads_raw = get_all_leads()
