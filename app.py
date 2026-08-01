@@ -18,11 +18,17 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 import streamlit as st
 import pandas as pd
 
-# --- CONFIGURAZIONE SMTP (GMAIL) DA ST.SECRETS ---
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-SENDER_EMAIL = st.secrets["smtp"]["modafferi@1986"]
-SENDER_PASSWORD = st.secrets["smtp"]["yxadrwsngtzarvww"]
+# --- CONFIGURAZIONE SMTP (GMAIL) SICURA CON FALLBACK ---
+try:
+    SMTP_SERVER = "smtp.gmail.com"
+    SMTP_PORT = 587
+    SENDER_EMAIL = st.secrets["smtp"]["radar.bandi@outlook.it"]
+    SENDER_PASSWORD = st.secrets["smtp"]["Vincenzo@1986"]
+except Exception:
+    SMTP_SERVER = "smtp.gmail.com"
+    SMTP_PORT = 587
+    SENDER_EMAIL = "modafferi89@gmail.com"
+    SENDER_PASSWORD = "yxadrwsngtzarvww"
 
 # --- CONFIGURAZIONE STRIPE ---
 LINK_PAGAMENTO_STRIPE = "https://buy.stripe.com/8x2aEZ68c16x8hv5HibZe00"
@@ -196,7 +202,7 @@ def converti_txt_in_pdf_reportlab(txt_path, pdf_path, studio_nome, bando_titolo,
     styles = getSampleStyleSheet()
 
     title_style = ParagraphStyle("TitleStyle", parent=styles["Heading1"], fontName="Helvetica-Bold", fontSize=16,
-                                 textColor=colors.HexColor("#1b365d"), spaceAfter=6)
+                                   textColor=colors.HexColor("#1b365d"), spaceAfter=6)
     subtitle_style = ParagraphStyle("SubTitleStyle", parent=styles["Normal"], fontName="Helvetica", fontSize=10,
                                     textColor=colors.HexColor("#555555"), spaceAfter=15)
     body_style = ParagraphStyle("BodyStyle", parent=styles["Normal"], fontName="Helvetica", fontSize=10, leading=14,
@@ -310,7 +316,6 @@ def controlla_ed_esegui_task_giornaliero():
                 )
 
 
-# Esegue il controllo lazy all'avvio dell'app dopo tutte le definizioni
 controlla_ed_esegui_task_giornaliero()
 
 
@@ -359,7 +364,7 @@ def genera_pdf_report_crm(df_leads):
     story = []
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle("ReportTitle", parent=styles["Heading1"], fontName="Helvetica-Bold", fontSize=14,
-                                 textColor=colors.HexColor("#1b365d"), spaceAfter=10)
+                                   textColor=colors.HexColor("#1b365d"), spaceAfter=10)
     story.append(Paragraph("Report Generale Attività e Pipeline CRM - Radar Bandi B2B", title_style))
     story.append(Spacer(1, 10))
 
@@ -431,9 +436,13 @@ Team Radar Bandi B2B
         return False
 
 
-# --- GESTIONE PASSWORD AMMINISTRATIVA (DA ST.SECRETS) ---
+# --- GESTIONE PASSWORD AMMINISTRATIVA (DA ST.SECRETS) CON FALLBACK ---
 st.sidebar.title("🔐 Area Amministrativa")
-PASSWORD_CRM = st.secrets["credentials"]["password_crm"]
+try:
+    PASSWORD_CRM = st.secrets["credentials"]["password_crm"]
+except Exception:
+    PASSWORD_CRM = "admin123"
+
 password_inserita = st.sidebar.text_input("Password CRM:", type="password")
 
 is_admin = False
@@ -480,13 +489,13 @@ Dettagli Tecnici:
         excel_data = output_excel.getvalue()
 
         st.sidebar.download_button("📊 Scarica Attività (Excel)", data=excel_data, file_name="report_attivita_crm.xlsx",
-                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         csv_data = df_crm.to_csv(index=False).encode("utf-8")
         st.sidebar.download_button("📄 Scarica Attività (CSV)", data=csv_data, file_name="report_attivita_crm.csv",
-                                   mime="text/csv")
+                                    mime="text/csv")
         pdf_report_data = genera_pdf_report_crm(df_crm)
         st.sidebar.download_button("📑 Scarica Attività (PDF)", data=pdf_report_data,
-                                   file_name="report_attivita_crm.pdf", mime="application/pdf")
+                                    file_name="report_attivita_crm.pdf", mime="application/pdf")
     else:
         st.sidebar.info("Nessun dato da esportare.")
 
@@ -567,7 +576,7 @@ with tab_download:
                     with open(pdf_path, "rb") as f:
                         pdf_bytes = f.read()
                     st.download_button(label="📥 Scarica Dossier Tecnico Ufficiale (.PDF)", data=pdf_bytes,
-                                       file_name=pdf_filename, mime="application/pdf")
+                                        file_name=pdf_filename, mime="application/pdf")
                 st.markdown(f"🔗 **Link Diretto al Bando Ufficiale:** [Apri Pagina]({link_esatto})")
             else:
                 st.warning("Per sbloccare l'accesso completo, procedi al pagamento spot.")
